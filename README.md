@@ -34,7 +34,7 @@ python -m venv venv
 
 3. Install required packages
 ```bash
-pip install streamlit google-generativeai tweepy requests beautifulsoup4 pandas
+pip install -r requirements.txt
 ```
 
 4. Set up API keys
