@@ -1,9 +1,7 @@
 import streamlit as st
-import tweepy
 import requests
 import google.generativeai as genai
 import pandas as pd
-import datetime
 from bs4 import BeautifulSoup
 
 # Initialize session states
