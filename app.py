@@ -3,6 +3,9 @@ import requests
 import google.generativeai as genai
 import pandas as pd
 from bs4 import BeautifulSoup
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
 
 # Initialize session states
 if 'trends_df' not in st.session_state:
@@ -11,6 +14,8 @@ if 'selected_trend' not in st.session_state:
     st.session_state.selected_trend = None
 if 'tweet_text' not in st.session_state:
     st.session_state.tweet_text = None
+if 'sentiment_scores' not in st.session_state:
+    st.session_state.sentiment_scores = []
 
 st.title("tweetX")
 st.markdown("""
@@ -73,6 +78,19 @@ def generate_tweet(prompt):
     except Exception as e:
         st.error(f"Error generating tweet: {str(e)}")
         return None
+
+def analyze_sentiment(text):
+    analyzer = SentimentIntensityAnalyzer()
+    sentiment_score = analyzer.polarity_scores(text)['compound']
+    
+    if sentiment_score >= 0.05:
+        sentiment = "Positive"
+    elif sentiment_score <= -0.05:
+        sentiment = "Negative"
+    else:
+        sentiment = "Neutral"
+    
+    return sentiment, sentiment_score
 
 def fetch_twitter_trends(country_code=""):
     """Fetch current Twitter trends"""
@@ -137,6 +155,38 @@ def generate_trend_based_tweet(trend_name, user_prompt=""):
     """
     return generate_tweet(prompt)
 
+def plot_sentiment_trends():
+    if st.session_state.sentiment_scores:
+        df = pd.DataFrame(st.session_state.sentiment_scores, columns=["Sentiment Score"])
+        st.subheader("Sentiment Trend")
+        fig, ax = plt.subplots()
+        df.plot(kind='line', ax=ax, marker='o', color='b')
+        ax.set_ylabel("Sentiment Score")
+        ax.set_xlabel("Tweet Number")
+        ax.axhline(y=0.05, color='g', linestyle='--', label='Positive Threshold')
+        ax.axhline(y=-0.05, color='r', linestyle='--', label='Negative Threshold')
+        ax.legend()
+        st.pyplot(fig)
+
+def generate_word_cloud(trends_df):
+    """Generate a word cloud from the trends DataFrame."""
+    if trends_df is None or trends_df.empty:
+        st.error("No trends available to generate a word cloud.")
+        return
+
+    # Combine all trend names into a single string
+    trend_text = " ".join(trends_df["Name"].tolist())
+
+    # Generate the word cloud
+    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(trend_text)
+
+    # Display the word cloud
+    st.subheader("Word Cloud of Trends")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wordcloud, interpolation="bilinear")
+    ax.axis("off")
+    st.pyplot(fig)
+
 # Main app layout
 col1, col2 = st.columns([1, 1])
 
@@ -181,7 +231,11 @@ with col2:
 if st.session_state.tweet_text:
         st.subheader("Generated Tweet")
         st.write(st.session_state.tweet_text)
-        
+        sentiment, score = analyze_sentiment(st.session_state.tweet_text)
+        st.write(f"**Sentiment:** {sentiment} ({score:.2f})")
+    
+        st.session_state.sentiment_scores.append(score)
+        plot_sentiment_trends()
         if st.button("Regenerate Tweet"):
             with st.spinner("Regenerating tweet..."):
                 tweet = generate_trend_based_tweet(st.session_state.selected_trend, tweet_prompt)
@@ -189,3 +243,8 @@ if st.session_state.tweet_text:
                     st.session_state.tweet_text = tweet
                     st.write("New Tweet:")
                     st.write(tweet)
+
+# Add a button to generate the word cloud
+if st.session_state.trends_df is not None and not st.session_state.trends_df.empty:
+    if st.button("Generate Word Cloud"):
+        generate_word_cloud(st.session_state.trends_df)
